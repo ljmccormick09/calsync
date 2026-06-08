@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Cal Sync">
+<title>Cal Sync</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #13131a;
+    --bg3: #1c1c26;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.14);
+    --text: #f0f0f5;
+    --muted: #7c7c99;
+    --accent: #7c6af7;
+    --accent-soft: rgba(124,106,247,0.15);
+    --accept: #22c97a;
+    --accept-soft: rgba(34,201,122,0.12);
+    --reject: #f25757;
+    --reject-soft: rgba(242,87,87,0.12);
+    --warn: #f5a623;
+    --radius: 16px;
+    --radius-sm: 10px;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+
+  body { display: flex; flex-direction: column; min-height: 100dvh; }
+
+  /* Header */
+  .header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10,10,15,0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: env(safe-area-inset-top, 0) 20px 0;
+  }
+  .header-inner {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 0;
+  }
+  .logo { font-family: 'DM Mono', monospace; font-size: 15px; font-weight: 500; color: var(--accent); letter-spacing: 0.04em; }
+  .logo span { color: var(--muted); }
+  .settings-btn { width: 36px; height: 36px; border-radius: 50%; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .settings-btn svg { width: 16px; height: 16px; stroke: var(--muted); fill: none; stroke-width: 1.5; }
+
+  /* Main scrollable area */
+  .main { flex: 1; overflow-y: auto; padding: 20px 20px env(safe-area-inset-bottom, 20px); }
+
+  /* States */
+  #stateInput, #stateReview, #stateSuccess { display: none; }
+  #stateInput.active, #stateReview.active, #stateSuccess.active { display: block; }
+
+  /* Input state */
+  .eyebrow { font-size: 11px; font-weight: 500; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; }
+  .prompt-label { font-size: 22px; font-weight: 600; color: var(--text); line-height: 1.3; margin-bottom: 24px; }
+
+  .input-area {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 16px;
+    transition: border-color 0.2s;
+  }
+  .input-area:focus-within { border-color: var(--accent); }
+
+  textarea {
+    width: 100%; min-height: 160px; background: transparent;
+    border: none; outline: none; resize: none;
+    color: var(--text); font-family: 'DM Sans', sans-serif;
+    font-size: 15px; line-height: 1.6; padding: 16px;
+    caret-color: var(--accent);
+  }
+  textarea::placeholder { color: var(--muted); }
+
+  .input-toolbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+  }
+  .toolbar-btn {
+    display: flex; align-items: center; gap: 6px;
+    padding: 7px 12px; border-radius: var(--radius-sm);
+    background: var(--bg3); border: 1px solid var(--border);
+    color: var(--muted); font-size: 13px; font-family: 'DM Sans', sans-serif;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .toolbar-btn:active { transform: scale(0.96); background: var(--border); }
+  .toolbar-btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+  #photoInput { display: none; }
+
+  .photo-preview {
+    margin: 0 14px 12px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    position: relative;
+  }
+  .photo-preview img { width: 100%; display: block; max-height: 180px; object-fit: cover; }
+  .photo-remove {
+    position: absolute; top: 8px; right: 8px;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: rgba(0,0,0,0.7); border: none;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+  }
+  .photo-remove svg { width: 14px; height: 14px; stroke: white; fill: none; stroke-width: 2; }
+
+  /* Shared-text banner */
+  .shared-banner {
+    display: flex; align-items: flex-start; gap: 10px;
+    background: var(--accent-soft); border: 1px solid rgba(124,106,247,0.25);
+    border-radius: var(--radius-sm); padding: 12px 14px;
+    margin-bottom: 16px; font-size: 13px; color: var(--text);
+  }
+  .shared-banner svg { width: 16px; height: 16px; stroke: var(--accent); fill: none; stroke-width: 1.8; flex-shrink: 0; margin-top: 1px; }
+  .shared-banner strong { color: var(--accent); }
+
+  /* Options row */
+  .options-row { display: flex; gap: 10px; margin-bottom: 20px; }
+  .option-chip {
+    flex: 1; text-align: center; padding: 10px 6px;
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); font-size: 12px; color: var(--muted);
+    cursor: pointer; transition: all 0.15s;
+  }
+  .option-chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  .option-chip .chip-icon { font-size: 18px; display: block; margin-bottom: 4px; }
+
+  /* CTA button */
+  .cta-btn {
+    width: 100%; padding: 18px;
+    background: var(--accent); border: none; border-radius: var(--radius);
+    color: white; font-family: 'DM Sans', sans-serif; font-size: 16px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; gap: 10px;
+  }
+  .cta-btn:active { transform: scale(0.98); opacity: 0.9; }
+  .cta-btn:disabled { opacity: 0.4; }
+  .cta-btn svg { width: 20px; height: 20px; stroke: white; fill: none; stroke-width: 2; }
+
+  /* Loading state */
+  .loading-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 32px 24px;
+    text-align: center; margin-top: 24px;
+  }
+  .pulse-ring {
+    width: 56px; height: 56px; border-radius: 50%;
+    border: 2px solid var(--accent);
+    border-top-color: transparent;
+    animation: spin 0.9s linear infinite;
+    margin: 0 auto 20px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-size: 15px; color: var(--muted); }
+  .loading-text strong { color: var(--text); display: block; font-size: 17px; margin-bottom: 6px; }
+
+  /* Review state */
+  .review-header { margin-bottom: 20px; }
+  .review-header h2 { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
+  .review-header p { font-size: 14px; color: var(--muted); }
+  
+  .review-actions-top {
+    display: flex; gap: 10px; margin-bottom: 20px;
+  }
+  .btn-accept-all, .btn-reject-all {
+    flex: 1; padding: 12px; border-radius: var(--radius-sm);
+    font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500;
+    cursor: pointer; border: none; transition: all 0.15s; display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .btn-accept-all { background: var(--accept-soft); color: var(--accept); border: 1px solid rgba(34,201,122,0.25); }
+  .btn-reject-all { background: var(--reject-soft); color: var(--reject); border: 1px solid rgba(242,87,87,0.2); }
+  .btn-accept-all:active, .btn-reject-all:active { transform: scale(0.97); }
+  .btn-accept-all svg, .btn-reject-all svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+  /* Event cards */
+  .event-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: var(--radius); margin-bottom: 12px;
+    overflow: hidden; transition: border-color 0.2s;
+  }
+  .event-card.accepted { border-color: rgba(34,201,122,0.3); }
+  .event-card.rejected { border-color: rgba(242,87,87,0.25); opacity: 0.5; }
+  .event-card.adding { border-color: var(--accent); }
+  .event-card.added { border-color: rgba(34,201,122,0.5); }
+
+  .event-body { padding: 16px; }
+  .event-type-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 6px; margin-bottom: 10px;
+  }
+  .badge-new { background: var(--accent-soft); color: var(--accent); }
+  .badge-change { background: rgba(245,166,35,0.12); color: var(--warn); }
+  .badge-cancel { background: var(--reject-soft); color: var(--reject); }
+
+  .event-title { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
+  .event-detail {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 14px; color: var(--muted); margin-bottom: 6px;
+  }
+  .event-detail:last-of-type { margin-bottom: 0; }
+  .event-detail svg { width: 15px; height: 15px; stroke: var(--muted); fill: none; stroke-width: 1.8; flex-shrink: 0; }
+  .event-detail strong { color: var(--text); }
+
+  .event-footer {
+    display: flex; border-top: 1px solid var(--border);
+  }
+  .ev-btn {
+    flex: 1; padding: 14px; border: none; background: transparent;
+    font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 7px;
+    transition: background 0.15s;
+  }
+  .ev-btn:active { transform: scale(0.97); }
+  .ev-btn-reject { color: var(--reject); border-right: 1px solid var(--border); }
+  .ev-btn-reject:active { background: var(--reject-soft); }
+  .ev-btn-accept { color: var(--accept); }
+  .ev-btn-accept:active { background: var(--accept-soft); }
+  .ev-btn svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 2; }
+  .ev-btn.done { color: var(--muted); cursor: default; font-size: 13px; }
+
+  .confirm-bar {
+    position: sticky; bottom: 0;
+    background: rgba(10,10,15,0.95); backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border);
+    padding: 14px 20px env(safe-area-inset-bottom, 14px);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .confirm-count { font-size: 13px; color: var(--muted); flex: 1; }
+  .confirm-count strong { color: var(--accept); }
+  .confirm-btn {
+    padding: 13px 22px; background: var(--accept); border: none; border-radius: var(--radius-sm);
+    color: white; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600;
+    cursor: pointer; display: flex; align-items: center; gap: 8px; white-space: nowrap;
+  }
+  .confirm-btn:disabled { opacity: 0.4; }
+  .confirm-btn:active { transform: scale(0.97); }
+  .confirm-btn svg { width: 16px; height: 16px; stroke: white; fill: none; stroke-width: 2.2; }
+
+  /* Success state */
+  .success-container { text-align: center; padding: 40px 20px; }
+  .success-icon { font-size: 56px; margin-bottom: 20px; }
+  .success-container h2 { font-size: 24px; font-weight: 600; margin-bottom: 8px; }
+  .success-container p { font-size: 15px; color: var(--muted); margin-bottom: 32px; }
+  .success-list { text-align: left; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 24px; }
+  .success-item { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .success-item:last-child { border-bottom: none; }
+  .success-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accept); flex-shrink: 0; }
+  .success-name { font-size: 14px; font-weight: 500; }
+  .success-date { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .start-over-btn {
+    width: 100%; padding: 16px; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text); font-family: 'DM Sans', sans-serif;
+    font-size: 15px; font-weight: 500; cursor: pointer;
+  }
+
+  /* Settings panel */
+  .panel-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px); z-index: 200; display: none;
+  }
+  .panel-overlay.open { display: block; }
+  .settings-panel {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 201;
+    background: var(--bg2); border-top: 1px solid var(--border2);
+    border-radius: 24px 24px 0 0;
+    padding: 20px 24px env(safe-area-inset-bottom, 24px);
+    transform: translateY(100%); transition: transform 0.3s ease;
+  }
+  .settings-panel.open { transform: translateY(0); }
+  .panel-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--border2); margin: 0 auto 24px; }
+  .panel-title { font-size: 17px; font-weight: 600; margin-bottom: 20px; }
+  .setting-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .setting-row:last-of-type { border-bottom: none; }
+  .setting-label { font-size: 15px; }
+  .setting-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  select.setting-select {
+    background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px;
+    color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px;
+    padding: 6px 10px; outline: none;
+  }
+  input.setting-input {
+    background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px;
+    color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px;
+    padding: 7px 12px; outline: none; width: 180px;
+  }
+
+  .no-events { text-align: center; padding: 48px 24px; color: var(--muted); }
+  .no-events svg { width: 40px; height: 40px; stroke: var(--border2); fill: none; stroke-width: 1.2; margin: 0 auto 16px; display: block; }
+
+  /* Inline spinner */
+  .mini-spin { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; vertical-align: middle; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div class="logo">cal<span>sync</span></div>
+    <button class="settings-btn" onclick="openSettings()" aria-label="Settings">
+      <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- INPUT STATE -->
+  <div id="stateInput" class="active">
+    <div id="sharedBanner" class="shared-banner" style="display:none">
+      <svg viewBox="0 0 24 24"><path d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 1 1 0-2.684m0 2.684 6.632 3.316m-6.632-6 6.632-3.316m0 0a3 3 0 1 1 .316 2.684"/></svg>
+      <div><strong>Shared content loaded.</strong> Review below and tap Extract.</div>
+    </div>
+
+    <p class="eyebrow">New schedule</p>
+    <h1 class="prompt-label">What do you need to add?</h1>
+
+    <div class="input-area">
+      <textarea id="scheduleText" placeholder="Paste a text message, email, or type it out…&#10;&#10;e.g. 'Practice moved to Thursday 6pm at Riverside'"  inputmode="text" autocorrect="on"></textarea>
+      <div id="photoPreviewWrap" class="photo-preview" style="display:none">
+        <img id="photoPreviewImg" alt="Schedule photo">
+        <button class="photo-remove" onclick="removePhoto()" aria-label="Remove photo">
+          <svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="input-toolbar">
+        <button class="toolbar-btn" onclick="document.getElementById('photoInput').click()">
+          <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          Photo / screenshot
+        </button>
+        <input type="file" id="photoInput" accept="image/*" capture="environment" onchange="handlePhoto(this)">
+        <button class="toolbar-btn" onclick="pasteClipboard()">
+          <svg viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+          Paste
+        </button>
+      </div>
+    </div>
+
+    <div class="options-row">
+      <div class="option-chip active" id="chip-reminder" onclick="toggleChip(this)">
+        <span class="chip-icon">🔔</span>Reminder
+      </div>
+      <div class="option-chip" id="chip-location" onclick="toggleChip(this)">
+        <span class="chip-icon">📍</span>Add location
+      </div>
+      <div class="option-chip" id="chip-notes" onclick="toggleChip(this)">
+        <span class="chip-icon">📝</span>Add notes
+      </div>
+    </div>
+
+    <button class="cta-btn" id="extractBtn" onclick="extractEvents()">
+      <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+      Extract events
+    </button>
+
+    <div id="loadingCard" class="loading-card" style="display:none">
+      <div class="pulse-ring"></div>
+      <div class="loading-text">
+        <strong id="loadingMsg">Reading your schedule…</strong>
+        AI is spotting dates, times & changes
+      </div>
+    </div>
+  </div>
+
+  <!-- REVIEW STATE -->
+  <div id="stateReview">
+    <div class="review-header">
+      <h2 id="reviewTitle">Found <span id="eventCount">0</span> updates</h2>
+      <p>Accept or reject each one, then sync to Calendar.</p>
+    </div>
+
+    <div class="review-actions-top">
+      <button class="btn-accept-all" onclick="acceptAll()">
+        <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+        Accept all
+      </button>
+      <button class="btn-reject-all" onclick="rejectAll()">
+        <svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        Reject all
+      </button>
+    </div>
+
+    <div id="eventsList"></div>
+  </div>
+
+  <!-- SUCCESS STATE -->
+  <div id="stateSuccess">
+    <div class="success-container">
+      <div class="success-icon">✅</div>
+      <h2>All synced!</h2>
+      <p id="successMsg">Your calendar has been updated.</p>
+      <div class="success-list" id="successList"></div>
+      <button class="start-over-btn" onclick="startOver()">Scan another schedule</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- Sticky confirm bar (review state only) -->
+<div class="confirm-bar" id="confirmBar" style="display:none">
+  <div class="confirm-count"><strong id="acceptedCount">0</strong> accepted</div>
+  <button class="confirm-btn" id="confirmBtn" onclick="syncToCalendar()" disabled>
+    <svg viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"/></svg>
+    Sync to Calendar
+  </button>
+</div>
+
+<!-- Settings panel -->
+<div class="panel-overlay" id="panelOverlay" onclick="closeSettings()"></div>
+<div class="settings-panel" id="settingsPanel">
+  <div class="panel-handle"></div>
+  <div class="panel-title">Settings</div>
+  <div class="setting-row">
+    <div>
+      <div class="setting-label">Reminder</div>
+      <div class="setting-sub">Added to every new event</div>
+    </div>
+    <select class="setting-select" id="reminderSetting">
+      <option value="none">None</option>
+      <option value="10" selected>10 min</option>
+      <option value="30">30 min</option>
+      <option value="60">1 hour</option>
+      <option value="1440">1 day</option>
+    </select>
+  </div>
+  <div class="setting-row">
+    <div>
+      <div class="setting-label">Default location</div>
+      <div class="setting-sub">Used when none is mentioned</div>
+    </div>
+    <input class="setting-input" id="defaultLocation" type="text" placeholder="e.g. Hickory Hills, IL">
+  </div>
+  <div class="setting-row">
+    <div>
+      <div class="setting-label">Timezone</div>
+    </div>
+    <select class="setting-select" id="timezoneSetting">
+      <option value="America/Chicago" selected>Chicago (CT)</option>
+      <option value="America/New_York">Eastern (ET)</option>
+      <option value="America/Denver">Mountain (MT)</option>
+      <option value="America/Los_Angeles">Pacific (PT)</option>
+    </select>
+  </div>
+</div>
+
+<script>
+  let events = [];
+  let photoData = null;
+  let photoMime = null;
+
+  // Check URL for shared text
+  window.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(location.search);
+    const shared = params.get('text') || params.get('shared');
+    if (shared) {
+      document.getElementById('scheduleText').value = decodeURIComponent(shared);
+      document.getElementById('sharedBanner').style.display = 'flex';
+    }
+  });
+
+  function toggleChip(el) { el.classList.toggle('active'); }
+
+  async function pasteClipboard() {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) document.getElementById('scheduleText').value = text;
+    } catch(e) {
+      alert('Tap and hold the text box, then choose Paste.');
+    }
+  }
+
+  function handlePhoto(input) {
+    const file = input.files[0];
+    if (!file) return;
+    photoMime = file.type;
+    const reader = new FileReader();
+    reader.onload = e => {
+      photoData = e.target.result.split(',')[1];
+      document.getElementById('photoPreviewImg').src = e.target.result;
+      document.getElementById('photoPreviewWrap').style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function removePhoto() {
+    photoData = null; photoMime = null;
+    document.getElementById('photoPreviewWrap').style.display = 'none';
+    document.getElementById('photoInput').value = '';
+  }
+
+  function openSettings() {
+    document.getElementById('panelOverlay').classList.add('open');
+    document.getElementById('settingsPanel').classList.add('open');
+  }
+  function closeSettings() {
+    document.getElementById('panelOverlay').classList.remove('open');
+    document.getElementById('settingsPanel').classList.remove('open');
+  }
+
+  const loadingMessages = [
+    'Reading your schedule…',
+    'Spotting dates and times…',
+    'Checking for changes…',
+    'Almost there…'
+  ];
+  let loadingInterval;
+
+  async function extractEvents() {
+    const text = document.getElementById('scheduleText').value.trim();
+    if (!text && !photoData) { alert('Add some text or a photo first.'); return; }
+
+    document.getElementById('extractBtn').disabled = true;
+    document.getElementById('loadingCard').style.display = 'block';
+    let msgIdx = 0;
+    loadingInterval = setInterval(() => {
+      msgIdx = (msgIdx + 1) % loadingMessages.length;
+      document.getElementById('loadingMsg').textContent = loadingMessages[msgIdx];
+    }, 1800);
+
+    const today = new Date().toISOString().split('T')[0];
+    const tz = document.getElementById('timezoneSetting').value;
+    const defaultLoc = document.getElementById('defaultLocation').value.trim();
+
+    const userContent = [];
+    if (photoData) {
+      userContent.push({ type: 'image', source: { type: 'base64', media_type: photoMime, data: photoData } });
+    }
+    userContent.push({ type: 'text', text: text || 'See the image above for the schedule.' });
+
+    try {
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          system: `You extract calendar events from text or images. Today is ${today}. Default timezone: ${tz}. Default location if none mentioned: "${defaultLoc || 'not specified'}". 
+Return ONLY a JSON array, no markdown, no preamble. Each object must have:
+{ 
+  "title": string,
+  "type": "new" | "change" | "cancel",
+  "date": "YYYY-MM-DD",
+  "startTime": "HH:MM" (24h) or null,
+  "endTime": "HH:MM" (24h) or null,
+  "location": string or null,
+  "changeNote": string or null (describe what changed if type=change),
+  "recurring": false
+}
+If a date is ambiguous pick the nearest upcoming date. If type is "change", set changeNote to what changed (e.g. "Moved from Monday to Thursday"). Return [] if no events found.`,
+          messages: [{ role: 'user', content: userContent }]
+        })
+      });
+      const data = await resp.json();
+      let raw = (data.content || []).map(b => b.text || '').join('');
+      raw = raw.replace(/```json|```/g, '').trim();
+      events = JSON.parse(raw);
+    } catch(e) {
+      events = [];
+      console.error(e);
+    }
+
+    clearInterval(loadingInterval);
+    document.getElementById('loadingCard').style.display = 'none';
+    document.getElementById('extractBtn').disabled = false;
+
+    if (!events.length) {
+      alert('No events found. Try adding more detail about dates and times.');
+      return;
+    }
+
+    events = events.map(ev => ({ ...ev, decision: null, status: 'pending' }));
+    showReview();
+  }
+
+  function showReview() {
+    document.getElementById('stateInput').classList.remove('active');
+    document.getElementById('stateReview').classList.add('active');
+    document.getElementById('eventCount').textContent = events.length;
+    document.getElementById('reviewTitle').textContent = `Found ${events.length} update${events.length > 1 ? 's' : ''}`;
+    document.getElementById('confirmBar').style.display = 'flex';
+    renderEventCards();
+    updateConfirmBar();
+  }
+
+  function fmt12(t) {
+    if (!t) return '';
+    const [h, m] = t.split(':').map(Number);
+    const ap = h >= 12 ? 'pm' : 'am';
+    return (h % 12 || 12) + (m ? ':' + String(m).padStart(2,'0') : '') + ap;
+  }
+  function fmtDate(d) {
+    if (!d) return '';
+    const [y, mo, day] = d.split('-').map(Number);
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const dow = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const dt = new Date(y, mo - 1, day);
+    return dow[dt.getDay()] + ', ' + months[mo - 1] + ' ' + day;
+  }
+
+  function renderEventCards() {
+    const list = document.getElementById('eventsList');
+    list.innerHTML = '';
+    if (!events.length) {
+      list.innerHTML = '<div class="no-events"><svg viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"/></svg>No events found</div>';
+      return;
+    }
+    events.forEach((ev, i) => {
+      const div = document.createElement('div');
+      div.className = 'event-card' + (ev.decision === 'accept' ? ' accepted' : ev.decision === 'reject' ? ' rejected' : '');
+      div.id = 'ecard-' + i;
+
+      const badgeClass = ev.type === 'change' ? 'badge-change' : ev.type === 'cancel' ? 'badge-cancel' : 'badge-new';
+      const badgeLabel = ev.type === 'change' ? '⚡ Changed' : ev.type === 'cancel' ? '✕ Cancelled' : '+ New event';
+      const timeStr = ev.startTime ? fmt12(ev.startTime) + (ev.endTime ? ' – ' + fmt12(ev.endTime) : '') : 'All day';
+
+      let footerHtml = '';
+      if (ev.status === 'adding') {
+        footerHtml = `<div class="event-footer"><div class="ev-btn done" style="flex:1;color:var(--accent)"><span class="mini-spin"></span> Adding to calendar…</div></div>`;
+      } else if (ev.status === 'added') {
+        footerHtml = `<div class="event-footer"><div class="ev-btn done" style="flex:1;color:var(--accept)">✓ Added to calendar</div></div>`;
+      } else {
+        footerHtml = `
+          <div class="event-footer">
+            <button class="ev-btn ev-btn-reject" onclick="decide(${i},'reject')">
+              <svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg> Skip
+            </button>
+            <button class="ev-btn ev-btn-accept" onclick="decide(${i},'accept')">
+              <svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg> Accept
+            </button>
+          </div>`;
+      }
+
+      div.innerHTML = `
+        <div class="event-body">
+          <span class="event-type-badge ${badgeClass}">${badgeLabel}</span>
+          <div class="event-title">${ev.title}</div>
+          <div class="event-detail">
+            <svg viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"/></svg>
+            <strong>${fmtDate(ev.date)}</strong>
+          </div>
+          <div class="event-detail">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            ${timeStr}
+          </div>
+          ${ev.location ? `<div class="event-detail"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${ev.location}</div>` : ''}
+          ${ev.changeNote ? `<div class="event-detail" style="color:var(--warn)"><svg viewBox="0 0 24 24" style="stroke:var(--warn)"><path d="m12 2 9.09 4.5L12 11 2.91 6.5 12 2z"/><path d="m21.09 8.5-9.09 4.5-9.09-4.5M12 22v-9"/></svg>${ev.changeNote}</div>` : ''}
+        </div>
+        ${footerHtml}
+      `;
+      list.appendChild(div);
+    });
+  }
+
+  function decide(i, decision) {
+    events[i].decision = decision;
+    const card = document.getElementById('ecard-' + i);
+    card.className = 'event-card ' + decision + 'ed';
+    renderEventCards();
+    updateConfirmBar();
+  }
+
+  function acceptAll() { events.forEach((_, i) => { events[i].decision = 'accept'; }); renderEventCards(); updateConfirmBar(); }
+  function rejectAll() { events.forEach((_, i) => { events[i].decision = 'reject'; }); renderEventCards(); updateConfirmBar(); }
+
+  function updateConfirmBar() {
+    const count = events.filter(e => e.decision === 'accept').length;
+    document.getElementById('acceptedCount').textContent = count;
+    document.getElementById('confirmBtn').disabled = count === 0;
+  }
+
+  function incrementHour(t) {
+    const [h, m] = t.split(':').map(Number);
+    return String((h + 1) % 24).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+  }
+
+  async function syncToCalendar() {
+    const tz = document.getElementById('timezoneSetting').value;
+    const reminder = document.getElementById('reminderSetting').value;
+    const accepted = events.filter(e => e.decision === 'accept');
+
+    document.getElementById('confirmBtn').disabled = true;
+    document.getElementById('confirmBtn').innerHTML = '<span class="mini-spin"></span> Syncing…';
+
+    for (let i = 0; i < events.length; i++) {
+      if (events[i].decision !== 'accept') continue;
+      events[i].status = 'adding';
+      renderEventCards();
+
+      const ev = events[i];
+      const start = ev.startTime
+        ? { dateTime: ev.date + 'T' + ev.startTime + ':00', timeZone: tz }
+        : { date: ev.date };
+      const end = ev.endTime
+        ? { dateTime: ev.date + 'T' + ev.endTime + ':00', timeZone: tz }
+        : ev.startTime
+          ? { dateTime: ev.date + 'T' + incrementHour(ev.startTime) + ':00', timeZone: tz }
+          : { date: ev.date };
+
+      const body = { summary: ev.title, location: ev.location || '', start, end };
+      if (reminder !== 'none') {
+        body.reminders = { useDefault: false, overrides: [{ method: 'popup', minutes: parseInt(reminder) }] };
+      }
+
+      try {
+        const resp = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 1000,
+            system: 'You are a calendar assistant. Use the Google Calendar MCP tool to create a calendar event with the exact data provided. Confirm when done.',
+            messages: [{ role: 'user', content: 'Create this Google Calendar event: ' + JSON.stringify(body) }],
+            mcp_servers: [{ type: 'url', url: 'https://calendarmcp.googleapis.com/mcp/v1', name: 'google-calendar' }]
+          })
+        });
+        const data = await resp.json();
+        const txt = (data.content || []).map(b => b.text || '').join(' ').toLowerCase();
+        const hasResult = (data.content || []).some(b => b.type === 'mcp_tool_result');
+        events[i].status = (hasResult || txt.includes('created') || txt.includes('success')) ? 'added' : 'error';
+      } catch(e) {
+        events[i].status = 'error';
+      }
+      renderEventCards();
+    }
+
+    const added = events.filter(e => e.status === 'added');
+    if (added.length > 0) showSuccess(added);
+    else {
+      document.getElementById('confirmBtn').innerHTML = 'Try again';
+      document.getElementById('confirmBtn').disabled = false;
+    }
+  }
+
+  function showSuccess(added) {
+    document.getElementById('stateReview').classList.remove('active');
+    document.getElementById('confirmBar').style.display = 'none';
+    document.getElementById('stateSuccess').classList.add('active');
+    document.getElementById('successMsg').textContent = added.length + ' event' + (added.length > 1 ? 's' : '') + ' added to Google Calendar.';
+    const list = document.getElementById('successList');
+    list.innerHTML = added.map(ev => `
+      <div class="success-item">
+        <div class="success-dot"></div>
+        <div>
+          <div class="success-name">${ev.title}</div>
+          <div class="success-date">${fmtDate(ev.date)}${ev.startTime ? ' · ' + fmt12(ev.startTime) : ''}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function startOver() {
+    events = []; photoData = null; photoMime = null;
+    document.getElementById('scheduleText').value = '';
+    document.getElementById('photoPreviewWrap').style.display = 'none';
+    document.getElementById('sharedBanner').style.display = 'none';
+    document.getElementById('stateSuccess').classList.remove('active');
+    document.getElementById('stateReview').classList.remove('active');
+    document.getElementById('stateInput').classList.add('active');
+    document.getElementById('confirmBar').style.display = 'none';
+  }
+</script>
+</body>
+</html>
