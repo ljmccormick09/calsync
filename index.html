@@ -553,9 +553,9 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
+          max_tokens: 4000,
           system: `You extract calendar events from text or images. Today is ${today}. Default timezone: ${tz}. Default location if none mentioned: "${defaultLoc || 'not specified'}". 
-Return ONLY a JSON array, no markdown, no preamble. Each object must have:
+Return ONLY a JSON array, no markdown, no preamble. Extract ALL events — do not skip any entries. Resolve relative dates like "tomorrow", "next week", "Wednesday", "Thursday" using today's date. Each object must have:
 { 
   "title": string,
   "type": "new" | "change" | "cancel",
@@ -566,7 +566,7 @@ Return ONLY a JSON array, no markdown, no preamble. Each object must have:
   "changeNote": string or null (describe what changed if type=change),
   "recurring": false
 }
-If a date is ambiguous pick the nearest upcoming date. If type is "change", set changeNote to what changed (e.g. "Moved from Monday to Thursday"). Return [] if no events found.`,
+For game schedules, format title as the matchup and note Home/Away in location. For cancellations set type to "cancel". For schedule changes set type to "change" and describe what changed in changeNote. Use the year from the document if shown, otherwise use today's year. Return [] only if there is truly no schedule content at all.`,
           messages: [{ role: 'user', content: userContent }]
         })
       });
